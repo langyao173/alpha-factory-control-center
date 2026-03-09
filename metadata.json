@@ -1,0 +1,5 @@
+{
+  "name": "Alpha Factory Control Center",
+  "description": "Real-time telemetry and simulation dashboard for a high-frequency trading Alpha Factory pipeline, visualizing Order Flow Imbalance, Tensor Alpha Synthesis, and HJB Execution.",
+  "requestFramePermissions": []
+}
