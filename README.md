@@ -5,7 +5,7 @@
 ![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?logo=tailwind-css&logoColor=white)
 
-**REN_TECH_CORE_V10** is a state-of-the-art, browser-based quantitative research terminal and Alpha mining engine. Designed to simulate the rigorous mathematical environments of Tier-1 Wall Street hedge funds and PhD-level quantitative research labs, this engine processes real-time L2 order book data to discover, optimize, and allocate non-linear trading signals (Alphas).
+**REN_TECH_CORE_V10** is a state-of-the-art, browser-based quantitative research terminal and Alpha mining engine. Designed to simulate the rigorous mathematical environments of quantitative research labs, this engine processes real-time L2 order book data to discover, optimize, and allocate non-linear trading signals (Alphas).
 
 Unlike traditional factor-mining tools, this engine operates at the intersection of **Topological Data Analysis (TDA)**, **Information Geometry**, **Random Matrix Theory (RMT)**, and **Mean Field Games (MFG)**.
 
@@ -83,7 +83,7 @@ The interface is designed for extreme information density, utilizing a dark, ter
 ## ⚠️ Disclaimer
 
 **FOR ACADEMIC AND RESEARCH PURPOSES ONLY.** 
-This software is a highly advanced simulation and visualization tool. While it connects to real market data and utilizes mathematically rigorous concepts, the calculations are optimized for browser execution and rely on proxy approximations. It does **not** constitute financial advice, and should **not** be used for live trading with real capital without a dedicated, low-latency C++/Rust backend execution engine.
+This software is a simulation and visualization tool. While it connects to real market data and utilizes mathematically rigorous concepts, the calculations are optimized for browser execution and rely on proxy approximations. It does **not** constitute financial advice, and should **not** be used for live trading with real capital without a dedicated, low-latency C++/Rust backend execution engine.
 
 ## 📄 License
 
