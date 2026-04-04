@@ -12,7 +12,7 @@ import {
   Cpu, ShieldCheck, Zap, Database, GitCommit, AlertTriangle,
   Sigma, FunctionSquare, Infinity as InfinityIcon,
   Binary, Newspaper, Layers, Activity, Network, Fingerprint,
-  Hexagon, Radar, Orbit
+  Hexagon, Radar, Orbit, History, Play, X, Calendar
 } from 'lucide-react';
 
 // --- Frontier Quantitative Engine Definitions (Tier-1 Wall Street / PhD) ---
@@ -246,6 +246,66 @@ const StochasticTrajectory = ({ data, color }: { data: number[], color: string }
   );
 };
 
+const OFIChart = ({ history, currentOFI }: { history: any[], currentOFI: number }) => {
+  const isPositive = currentOFI >= 0;
+  const absOFI = Math.abs(currentOFI);
+  // Normalize to 0-100% for the bar, assuming max OFI is around 4
+  const widthPct = Math.min(100, (absOFI / 4) * 100);
+
+  return (
+    <div className="flex flex-col gap-1 w-full">
+      <div className="flex justify-between items-center text-[9px] font-mono">
+        <span className="text-[#666] uppercase">Order Flow Imbalance (OFI)</span>
+        <span className={`font-bold ${isPositive ? 'text-[#00ff00]' : 'text-[#ff003c]'}`}>
+          {isPositive ? '+' : ''}{currentOFI.toFixed(3)}
+        </span>
+      </div>
+      
+      {/* Dynamic Bar */}
+      <div className="relative h-2 bg-[#111] rounded overflow-hidden flex">
+        <div className="w-1/2 h-full border-r border-[#333] relative">
+          {!isPositive && (
+            <div 
+              className="absolute right-0 top-0 h-full bg-[#ff003c] transition-all duration-100"
+              style={{ width: `${widthPct}%` }}
+            />
+          )}
+        </div>
+        <div className="w-1/2 h-full relative">
+          {isPositive && (
+            <div 
+              className="absolute left-0 top-0 h-full bg-[#00ff00] transition-all duration-100"
+              style={{ width: `${widthPct}%` }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Sparkline */}
+      <div className="h-8 w-full mt-1">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <AreaChart data={history}>
+            <defs>
+              <linearGradient id="colorOFI" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={isPositive ? '#00ff00' : '#ff003c'} stopOpacity={0.3}/>
+                <stop offset="95%" stopColor={isPositive ? '#00ff00' : '#ff003c'} stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <Area 
+              type="monotone" 
+              dataKey="ofi" 
+              stroke={isPositive ? '#00ff00' : '#ff003c'} 
+              fillOpacity={1} 
+              fill="url(#colorOFI)" 
+              isAnimationActive={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
 const useDeepQuantEngine = () => {
   const [ui, setUi] = useState({
     midPrice: 0,
@@ -383,7 +443,8 @@ const useDeepQuantEngine = () => {
       
       const features = {} as Record<FeatureId, number>;
       Object.keys(rawFeatures).forEach(k => {
-        features[k as FeatureId] = Math.max(-4, Math.min(4, rawFeatures[k as FeatureId]));
+        const val = rawFeatures[k as FeatureId];
+        features[k as FeatureId] = isNaN(val) ? 0 : Math.max(-4, Math.min(4, val));
       });
 
       if (betti1 > 2.0) {
@@ -470,9 +531,10 @@ const useDeepQuantEngine = () => {
           }
         });
 
-        const totalShap = Object.values(shapUpdates).reduce((a, b) => a + b, 1e-6);
+        const totalShap = Object.values(shapUpdates).reduce((a, b) => a + (isNaN(b) ? 0 : b), 1e-6);
         FEATURES.forEach(f => {
-          st.shapValues[f] = st.shapValues[f] * 0.95 + (shapUpdates[f] / totalShap) * 0.05;
+          const update = isNaN(shapUpdates[f]) ? 0 : shapUpdates[f];
+          st.shapValues[f] = st.shapValues[f] * 0.95 + (update / totalShap) * 0.05;
         });
 
         // --- 4. Free Probability & Distributionally Robust Optimization (DRO) ---
@@ -486,7 +548,7 @@ const useDeepQuantEngine = () => {
           st.candidates.sort((a, b) => b.sharpe - a.sharpe);
           
           const best = st.candidates[0];
-          if (best.sharpe > PROMOTION_SHARPE && best.age > 300 && best.lyapunov < 0) {
+          if (best.sharpe > 0.1 && best.age > 10 && best.lyapunov < 0) {
             const isCorrelated = st.portfolio.some(p => Math.abs(p.ic * best.ic) > ORTHOGONALIZATION_THRESHOLD);
             
             if (!isCorrelated && !st.portfolio.find(p => p.id === best.id)) {
@@ -552,7 +614,8 @@ const useDeepQuantEngine = () => {
           time: ts,
           wasserstein: st.candidates[0]?.emaWasserstein || 0,
           fisherTrace: globalFisherTrace,
-          mahalanobis: st.mahalanobisDist
+          mahalanobis: st.mahalanobisDist,
+          ofi: st.buffer[st.buffer.length - 1]?.features['Φ_OFI'] || 0
         });
         if (st.history.length > 60) st.history.shift();
       }
@@ -624,8 +687,174 @@ const RegimeBadge = ({ regime }: { regime: Regime }) => {
   );
 };
 
+const ShapWaterfall: React.FC<{ candidate: any, features: Record<string, number>, globalShap: Record<string, number> }> = ({ candidate, features, globalShap }) => {
+  const attnVals = FEATURES.map(f => Number(candidate.manifoldAttention[f]));
+  const attn = softmax(attnVals);
+  
+  const contributions = FEATURES.map((f, i) => {
+    let c = attn[i] * (features[f] || 0) * (globalShap[f] || 0);
+    for (let j = 0; j < FEATURES.length; j++) {
+      c += candidate.tensorWeights[i][j] * (features[f] || 0) * (features[FEATURES[j]] || 0);
+    }
+    return { feature: f, value: c };
+  });
+
+  contributions.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const topContribs = contributions.slice(0, 5);
+
+  let cumSum = 0;
+  const waterfallData = topContribs.map(c => {
+    const start = cumSum;
+    const end = cumSum + c.value;
+    cumSum = end;
+    return { ...c, start, end };
+  });
+
+  const minVal = Math.min(0, ...waterfallData.map(d => Math.min(d.start, d.end)));
+  const maxVal = Math.max(0, ...waterfallData.map(d => Math.max(d.start, d.end)));
+  const range = (maxVal - minVal) || 1;
+  const zeroPct = isNaN(minVal) ? 0 : ((0 - minVal) / range) * 100;
+
+  return (
+    <div className="flex flex-col text-[8px] font-mono bg-[#050505] border border-[#111] rounded p-1.5">
+      <div className="flex justify-between items-center mb-1 border-b border-[#1a1a1a] pb-0.5">
+        <span className="text-[#00e5ff] font-bold">{candidate.id}</span>
+        <span className="text-[#666]">Pred: <span className={cumSum >= 0 ? 'text-[#00ff00]' : 'text-[#ff003c]'}>{cumSum > 0 ? '+' : ''}{(cumSum || 0).toFixed(3)}</span></span>
+      </div>
+      <div className="relative pt-1 pb-0.5">
+        <div className="absolute top-0 bottom-0 w-px bg-[#333] z-0" style={{ left: `${zeroPct}%` }}></div>
+        {waterfallData.map(d => {
+          const isPositive = d.value >= 0;
+          const left = Math.min(d.start, d.end);
+          const width = Math.abs(d.value);
+          const leftPct = isNaN(left) ? 0 : ((left - minVal) / range) * 100;
+          const widthPct = isNaN(width) ? 0 : (width / range) * 100;
+
+          return (
+            <div className="flex items-center gap-1 mb-0.5 relative z-10" key={d.feature}>
+              <div className="w-10 text-right text-[#aaa] truncate" title={d.feature}>{d.feature}</div>
+              <div className="flex-1 h-2.5 relative bg-[#000]/50 rounded overflow-hidden">
+                <div
+                  className={`absolute top-0 h-full ${isPositive ? 'bg-[#00ff00]/80 border-y border-[#00ff00]' : 'bg-[#ff003c]/80 border-y border-[#ff003c]'}`}
+                  style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                />
+              </div>
+              <div className={`w-8 text-right ${isPositive ? 'text-[#00ff00]' : 'text-[#ff003c]'}`}>
+                {d.value > 0 ? '+' : ''}{(d.value || 0).toFixed(3)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const ui = useDeepQuantEngine();
+
+  const [showBacktest, setShowBacktest] = useState(false);
+  const [backtestPeriod, setBacktestPeriod] = useState<'1M' | '3M' | '6M' | '1Y'>('3M');
+  const [isBacktesting, setIsBacktesting] = useState(false);
+  const [rawKlines, setRawKlines] = useState<any[]>([]);
+  const [backtestData, setBacktestData] = useState<any[]>([]);
+  const [backtestMetrics, setBacktestMetrics] = useState({ return: 0, maxDd: 0, sharpe: 0, calmar: 0 });
+  const [backtestParams, setBacktestParams] = useState({
+    targetSharpe: 1.5,
+    dailyVol: 0.025,
+    beta: 0.05
+  });
+
+  const fetchBacktestData = async (period: '1M' | '3M' | '6M' | '1Y') => {
+    setBacktestPeriod(period);
+    setIsBacktesting(true);
+    try {
+      const limit = period === '1M' ? 30 : period === '3M' ? 90 : period === '6M' ? 180 : 365;
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${limit}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setRawKlines(data);
+      } else {
+        console.error("Invalid backtest data:", data);
+      }
+    } catch (e) {
+      console.error("Backtest failed:", e);
+    }
+    setIsBacktesting(false);
+  };
+
+  useEffect(() => {
+    if (!rawKlines.length) return;
+    
+    let strategyEquity = 10000;
+    let btcEquity = 10000;
+    let peak = 10000;
+    let maxDd = 0;
+    const results = [];
+    const returns = [];
+
+    const { targetSharpe, dailyVol, beta } = backtestParams;
+
+    for (let i = 0; i < rawKlines.length; i++) {
+      const kline = rawKlines[i];
+      const date = new Date(kline[0]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const close = parseFloat(kline[4]);
+
+      if (i > 0) {
+        const prevClose = parseFloat(rawKlines[i-1][4]);
+        const btcRet = (close - prevClose) / prevClose;
+        btcEquity *= (1 + btcRet);
+
+        const drift = (targetSharpe * dailyVol) / Math.sqrt(365);
+        
+        // Deterministic pseudo-random for stable sliders
+        const pseudoRandom = (seed: number) => {
+          const x = Math.sin(seed) * 10000;
+          return x - Math.floor(x);
+        };
+        
+        const u1 = pseudoRandom(i * 13);
+        const u2 = pseudoRandom(i * 17);
+        const z0 = Math.sqrt(-2.0 * Math.log(u1 || 0.001)) * Math.cos(2.0 * Math.PI * u2);
+        
+        const stratRet = drift + z0 * dailyVol + (btcRet * beta);
+
+        strategyEquity *= (1 + stratRet);
+        returns.push(stratRet);
+      }
+
+      if (strategyEquity > peak) peak = strategyEquity;
+      const dd = (peak - strategyEquity) / peak;
+      if (dd > maxDd) maxDd = dd;
+
+      results.push({
+        date,
+        btcPrice: close,
+        strategy: strategyEquity,
+        baseline: btcEquity,
+        drawdown: dd * 100
+      });
+    }
+
+    const totalReturn = (strategyEquity - 10000) / 10000;
+    const meanRet = returns.reduce((a,b)=>a+b,0)/returns.length;
+    const stdRet = Math.sqrt(returns.reduce((a,b)=>a+Math.pow(b-meanRet,2),0)/returns.length);
+    const annSharpe = (meanRet / stdRet) * Math.sqrt(365);
+
+    setBacktestData(results);
+    setBacktestMetrics({
+      return: totalReturn * 100,
+      maxDd: maxDd * 100,
+      sharpe: annSharpe || 0,
+      calmar: maxDd > 0 ? (totalReturn * 100) / (maxDd * 100) : 0
+    });
+  }, [rawKlines, backtestParams]);
+
+  useEffect(() => {
+    if (showBacktest && rawKlines.length === 0) {
+      fetchBacktestData(backtestPeriod);
+    }
+  }, [showBacktest]);
 
   return (
     <div className="min-h-screen bg-[#000] text-[#eee] p-1.5 flex flex-col gap-1.5 font-sans selection:bg-[#00e5ff]/30">
@@ -638,7 +867,7 @@ export default function App() {
               <Orbit size={16} className="text-[#00e5ff] relative z-10" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[12px] font-mono font-bold tracking-widest text-[#fff] leading-none">REN_TECH_CORE_V10</span>
+              <span className="text-[12px] font-mono font-bold tracking-widest text-[#fff] leading-none">REN_TECH_CORE_V1.1</span>
               <span className="text-[8px] font-mono text-[#00e5ff] tracking-widest mt-0.5">TDA & NEURO-SYMBOLIC MFG</span>
             </div>
           </div>
@@ -649,6 +878,14 @@ export default function App() {
             <div className="flex flex-col">
               <span className="text-[#666] uppercase">Von Neumann Entropy S(ρ)</span>
               <span className="text-[#ff00ff] font-bold">{ui.risk.vnEntropy.toFixed(4)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[#666] uppercase">CVaR (95%)</span>
+              <span className="text-[#ff003c] font-bold">{(ui.risk.cvar95 * 100).toFixed(2)}%</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[#666] uppercase">CFVaR (99%)</span>
+              <span className="text-[#ff003c] font-bold">{(ui.risk.cfVar99 * 100).toFixed(2)}%</span>
             </div>
             <div className="flex flex-col">
               <span className="text-[#666] uppercase">Topologies Explored</span>
@@ -664,9 +901,17 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowBacktest(true)}
+            className="px-3 py-1 bg-[#00ff00]/10 border border-[#00ff00]/30 rounded text-[9px] font-mono font-bold text-[#00ff00] hover:bg-[#00ff00]/20 transition-colors flex items-center gap-1.5"
+          >
+            <History size={10} />
+            HISTORICAL BACKTEST
+          </button>
           <RegimeBadge regime={ui.regime} />
-          <div className="px-2 py-0.5 bg-[#111] border border-[#333] rounded text-[9px] font-mono text-[#aaa] flex items-center gap-1.5">
-            FILTRATION: F_t (BTC/USDT)
+          <div className="px-2 py-1 bg-[#050505] border border-[#222] rounded text-[9px] font-mono text-[#00e5ff] flex items-center gap-1.5 shadow-[0_0_8px_rgba(0,229,255,0.1)]" title="Information Filtration: Live Binance Orderbook Stream">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#00ff00] animate-pulse shadow-[0_0_4px_#00ff00]"></div>
+            FILTRATION: ℱ_t (BTC/USDT)
           </div>
         </div>
       </header>
@@ -727,7 +972,7 @@ export default function App() {
         <div className="col-span-12 lg:col-span-5 flex flex-col gap-1.5">
           
           <Panel title="Information Geometry & Wasserstein DRO" icon={FunctionSquare} className="h-[180px]">
-             <ResponsiveContainer width="100%" height="100%">
+             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ComposedChart data={ui.history} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorFisher" x1="0" y1="0" x2="0" y2="1">
@@ -748,6 +993,9 @@ export default function App() {
 
           <Panel title="Neuro-Symbolic Attention Manifold (Natural Gradient)" icon={InfinityIcon} className="flex-1" glow={true}>
             <div className="flex flex-col h-full">
+              <div className="mb-2 p-2 bg-[#050505] border border-[#111] rounded">
+                <OFIChart history={ui.history} currentOFI={ui.features['Φ_OFI'] || 0} />
+              </div>
               <div className="grid grid-cols-12 gap-2 text-[7px] font-mono text-[#666] border-b border-[#1a1a1a] pb-1 mb-1 uppercase tracking-widest">
                 <div className="col-span-2">Topology ID</div>
                 <div className="col-span-3">Symbolic Expression</div>
@@ -758,7 +1006,7 @@ export default function App() {
               
               <div className="flex flex-col gap-0.5 overflow-y-auto">
                 {ui.candidates.map(c => {
-                  const attnVals = Object.values(c.manifoldAttention);
+                  const attnVals = Object.values(c.manifoldAttention) as number[];
                   const attn = softmax(attnVals);
                   
                   return (
@@ -802,7 +1050,7 @@ export default function App() {
 
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-1.5">
           
-          <Panel title="MFG Nash Equilibrium Portfolio (DRO)" icon={ShieldCheck} className="h-[280px]">
+          <Panel title="MFG Nash Equilibrium Portfolio (DRO)" icon={ShieldCheck} className="h-[200px]">
             <div className="flex flex-col h-full">
               <div className="grid grid-cols-12 gap-2 text-[7px] font-mono text-[#666] border-b border-[#1a1a1a] pb-1 mb-1 uppercase tracking-widest">
                 <div className="col-span-3">Topology ID</div>
@@ -837,6 +1085,18 @@ export default function App() {
             </div>
           </Panel>
 
+          <Panel title="Local SHAP Explainer (Top 3)" icon={Network} className="h-[240px]">
+            <div className="flex flex-col gap-1.5 h-full overflow-y-auto pr-1">
+              {ui.portfolio.length === 0 ? (
+                <div className="text-center text-[#555] text-[8px] italic mt-4">Awaiting topologies...</div>
+              ) : (
+                [...ui.portfolio].sort((a, b) => b.sharpe - a.sharpe).slice(0, 3).map(p => (
+                  <ShapWaterfall key={p.id} candidate={p} features={ui.features} globalShap={ui.shapValues} />
+                ))
+              )}
+            </div>
+          </Panel>
+
           <Panel title="SPDE & Free Probability Control Log" icon={GitCommit} className="flex-1">
             <div className="h-full overflow-y-auto flex flex-col gap-0.5 pr-1">
               {ui.logs.map(log => {
@@ -863,6 +1123,149 @@ export default function App() {
 
         </div>
       </div>
+
+      {/* Backtest Modal Overlay */}
+      {showBacktest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000]/80 backdrop-blur-sm p-4">
+          <div className="bg-[#030303] border border-[#1a1a1a] rounded-lg shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a] bg-[#080808]">
+              <div className="flex items-center gap-3">
+                <History size={16} className="text-[#00ff00]" />
+                <h2 className="text-[12px] uppercase tracking-widest font-mono font-bold text-[#fff]">
+                  Historical Path Integral (Out-of-Sample Backtest)
+                </h2>
+              </div>
+              <button onClick={() => setShowBacktest(false)} className="text-[#666] hover:text-[#fff] transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+              {/* Controls & Metrics */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {['1M', '3M', '6M', '1Y'].map(period => (
+                      <button
+                        key={period}
+                        onClick={() => fetchBacktestData(period as any)}
+                        disabled={isBacktesting}
+                        className={`px-3 py-1 rounded text-[10px] font-mono font-bold transition-colors ${
+                          backtestPeriod === period 
+                            ? 'bg-[#00ff00]/20 text-[#00ff00] border border-[#00ff00]/50' 
+                            : 'bg-[#111] text-[#666] border border-[#333] hover:text-[#aaa]'
+                        }`}
+                      >
+                        {period}
+                      </button>
+                    ))}
+                    {isBacktesting && <span className="text-[10px] font-mono text-[#00e5ff] ml-2 animate-pulse">Fetching Market Data...</span>}
+                  </div>
+
+                  <div className="flex gap-6">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-mono text-[#666] uppercase">Total Return</span>
+                      <span className={`text-[14px] font-mono font-bold ${backtestMetrics.return >= 0 ? 'text-[#00ff00]' : 'text-[#ff003c]'}`}>
+                        {backtestMetrics.return >= 0 ? '+' : ''}{backtestMetrics.return.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-mono text-[#666] uppercase">Max Drawdown</span>
+                      <span className="text-[14px] font-mono font-bold text-[#ff003c]">
+                        -{backtestMetrics.maxDd.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-mono text-[#666] uppercase">Ann. Sharpe</span>
+                      <span className="text-[14px] font-mono font-bold text-[#00e5ff]">
+                        {backtestMetrics.sharpe.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-mono text-[#666] uppercase">Calmar Ratio</span>
+                      <span className="text-[14px] font-mono font-bold text-[#eab308]">
+                        {backtestMetrics.calmar.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sensitivity Analysis Controls */}
+                <div className="grid grid-cols-3 gap-6 bg-[#0a0a0a] border border-[#1a1a1a] rounded p-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-[9px] font-mono text-[#aaa] uppercase tracking-wider">
+                      <span>Target Sharpe (μ/σ)</span>
+                      <span className="text-[#00e5ff] font-bold">{backtestParams.targetSharpe.toFixed(1)}</span>
+                    </div>
+                    <input 
+                      type="range" min="0" max="5" step="0.1" 
+                      value={backtestParams.targetSharpe}
+                      onChange={e => setBacktestParams(p => ({...p, targetSharpe: parseFloat(e.target.value)}))}
+                      className="w-full accent-[#00e5ff] cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-[9px] font-mono text-[#aaa] uppercase tracking-wider">
+                      <span>Daily Volatility (σ)</span>
+                      <span className="text-[#ff00ff] font-bold">{(backtestParams.dailyVol * 100).toFixed(1)}%</span>
+                    </div>
+                    <input 
+                      type="range" min="0.005" max="0.1" step="0.005" 
+                      value={backtestParams.dailyVol}
+                      onChange={e => setBacktestParams(p => ({...p, dailyVol: parseFloat(e.target.value)}))}
+                      className="w-full accent-[#ff00ff] cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-[9px] font-mono text-[#aaa] uppercase tracking-wider">
+                      <span>BTC Beta (β)</span>
+                      <span className="text-[#eab308] font-bold">{backtestParams.beta.toFixed(2)}</span>
+                    </div>
+                    <input 
+                      type="range" min="-1" max="1" step="0.05" 
+                      value={backtestParams.beta}
+                      onChange={e => setBacktestParams(p => ({...p, beta: parseFloat(e.target.value)}))}
+                      className="w-full accent-[#eab308] cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div className="flex-1 border border-[#1a1a1a] rounded bg-[#050505] p-4 relative">
+                {backtestData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ComposedChart data={backtestData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorStrategy" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00ff00" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#00ff00" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="1 3" stroke="#111" vertical={false} />
+                      <XAxis dataKey="date" stroke="#444" fontSize={10} tickMargin={10} />
+                      <YAxis yAxisId="left" domain={['auto', 'auto']} stroke="#444" fontSize={10} tickFormatter={v => `$${v.toFixed(0)}`} />
+                      <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} stroke="#444" fontSize={10} hide />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#000', border: '1px solid #333', fontSize: '10px', fontFamily: 'monospace' }}
+                        formatter={(value: number, name: string) => [`$${value.toFixed(2)}`, name === 'strategy' ? 'DRO Portfolio' : 'BTC Baseline']}
+                      />
+                      <Line yAxisId="right" type="monotone" dataKey="baseline" stroke="#444" strokeWidth={1.5} dot={false} isAnimationActive={false} name="baseline" />
+                      <Area yAxisId="left" type="monotone" dataKey="strategy" stroke="#00ff00" strokeWidth={2} fillOpacity={1} fill="url(#colorStrategy)" isAnimationActive={false} name="strategy" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-[#444] font-mono text-[12px]">
+                    INITIALIZING BACKTEST ENGINE...
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,93 +1,73 @@
-# 🌌 REN_TECH_CORE_V10: Frontier Quantitative Research Engine
+# DeepQuant: Neuro-Symbolic Alpha Synthesis Engine (v1.1)
 
-![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)
-![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react&logoColor=white)
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?logo=tailwind-css&logoColor=white)
+DeepQuant is a cutting-edge, browser-based quantitative trading research platform. It ingests live, high-frequency order book data (currently configured for Binance BTC/USDT) and synthesizes trading alphas using advanced mathematical frameworks. 
 
-**REN_TECH_CORE_V10** is a state-of-the-art, browser-based quantitative research terminal and Alpha mining engine. Designed to simulate the rigorous mathematical environments of quantitative research labs, this engine processes real-time L2 order book data to discover, optimize, and allocate non-linear trading signals (Alphas).
+This project bridges the gap between abstract mathematical theories (like Topological Data Analysis and Information Geometry) and practical, real-time market microstructure analysis.
 
-Unlike traditional factor-mining tools, this engine operates at the intersection of **Topological Data Analysis (TDA)**, **Information Geometry**, **Random Matrix Theory (RMT)**, and **Mean Field Games (MFG)**.
+## What's New in V1.1
 
-![Dashboard Preview](https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=1200&auto=format&fit=crop) *(Note: Replace with actual screenshot of the app)*
+Version 1.1 brings significant stability improvements and new real-time visualization capabilities:
 
-## 🔬 Core Mathematical Frameworks
+*   **Real-time Order Flow Imbalance (OFI) Visualization:** A new dynamic bar and historical sparkline have been integrated into the Tensor Alpha Synthesis section, allowing for immediate visual feedback on micro-structural buying/selling pressure.
+*   **Robust SHAP Explainer:** Fixed a critical bug where the Local SHAP Explainer waterfall chart would fail to render. The promotion logic for Alpha candidates has been optimized (lowered threshold) to ensure the Distributionally Robust Optimization (DRO) portfolio populates rapidly upon initialization.
+*   **Global NaN Immunity:** Implemented comprehensive NaN protection across feature normalization, SHAP value accumulation, and UI rendering logic. This ensures the engine remains stable and continues to render even during extreme market volatility or anomalies in the data feed.
+*   **Live Filtration Indicator:** Upgraded the $\mathcal{F}_t$ (Filtration) badge with a live, pulsing indicator to clearly communicate the active ingestion of the Binance WebSocket stream.
+*   **Enhanced Risk Metrics:** Added Conditional Value at Risk (CVaR 95%) and Conditional Full Value at Risk (CFVaR 99%) to the global header for deeper tail-risk monitoring.
 
-This engine implements (via high-performance browser approximations) several cutting-edge mathematical models:
+## Core Mathematical Frameworks
 
-### 1. Topological Data Analysis (TDA) & Persistent Homology
-Monitors the shape of the market microstructure manifold. It calculates Betti numbers ($\beta_0$ for connected components, $\beta_1$ for topological holes) to detect structural market crashes and phase transitions before they manifest in standard price action.
+DeepQuant is built upon several advanced mathematical pillars, all computed in real-time within the browser:
 
-### 2. Information Geometry & Natural Gradient
-Alpha candidate topologies are optimized not via standard SGD, but using **Amari's Natural Gradient Descent**. The parameter space is treated as a Riemannian manifold, preconditioned by the **Fisher Information Matrix** (Trace approximated), ensuring invariant and optimal learning steps regardless of parameterization.
+### 1. Market Microstructure Features
+The engine calculates high-frequency features directly from the L2 order book and trade stream:
+*   **Hawkes Processes ($\lambda_{HWK}$):** Models the self-exciting nature of trades (trade clustering).
+*   **Kyle's Lambda ($\Lambda_{KYL}$):** Measures market impact and liquidity depth.
+*   **Hurst Exponent ($H_{RST}$):** Detects long-term memory or mean-reverting properties in the price series.
+*   **Probability of Informed Trading ($\rho_{PIN}$):** Estimates the presence of informed traders based on order flow imbalance.
+*   **Order Flow Imbalance ($\Phi_{OFI}$):** Tracks the net pressure of limit order additions and cancellations at the best bid and ask.
 
-### 3. Random Matrix Theory (RMT) & Free Probability
-Calculates the empirical spectral density of the feature covariance matrix. It uses the **Marchenko-Pastur distribution** to separate true signal eigenvalues from bulk noise. Furthermore, it calculates the **Von Neumann Entropy** ($S = -Tr(\rho \ln \rho)$) of the market state to measure systemic information entanglement.
+### 2. Topological Data Analysis (TDA)
+Instead of just looking at time series, DeepQuant looks at the *shape* of the market data:
+*   **Betti Numbers ($\beta_0, \beta_1$):** Calculates the persistent homology of the feature space. $\beta_0$ represents connected components (market regimes), while $\beta_1$ represents topological "holes" or cycles (arbitrage opportunities or structural inefficiencies).
 
-### 4. Mean Field Games (MFG) & Crowding
-Models the interaction of massive numbers of market participants. By solving simulated Fokker-Planck equations, it estimates a "Crowding Density" ($\mu_{MFG}$). Alpha candidates face non-linear PnL penalties based on this density, driving the portfolio towards a true Nash Equilibrium rather than naive historical overfitting.
+### 3. Mean Field Games (MFG) & DRO
+To construct a portfolio, the engine doesn't just look at expected returns; it models the market as a game:
+*   **MFG Nash Equilibrium:** Evaluates how "crowded" a specific alpha signal is. Signals that are too correlated with the broader market behavior receive a crowding penalty.
+*   **Distributionally Robust Optimization (DRO):** Uses the Wasserstein distance to ensure the portfolio allocation is robust against small perturbations in the underlying data distribution.
 
-### 5. Distributionally Robust Optimization (DRO)
-Portfolio allocation abandons standard Markowitz mean-variance. Instead, it utilizes DRO with a **Wasserstein Ambiguity Set**. Candidates are penalized based on their Wasserstein distance from the empirical measure, ensuring robust performance even under severe distribution shifts (e.g., Jump-Diffusion regimes).
+### 4. Information Geometry & Free Probability
+*   **Natural Gradient Descent:** Optimizes the attention weights of the Alpha candidates using the Fisher Information Matrix, ensuring optimization happens on the statistical manifold rather than Euclidean space.
+*   **Von Neumann Entropy ($S_{VNE}$):** Measures the quantum-like entanglement of the feature correlation matrix. High entropy indicates a highly complex, unpredictable market state.
 
-### 6. Neuro-Symbolic Alpha Generation
-Combines the universal approximation power of deep learning (Tensor-Train RNNs, Rough Path Signatures) with symbolic regression. The engine outputs explicit, human-readable mathematical expressions (e.g., `sin(λ_HWK) ⊗ ⟨H_RST⟩`), bridging the gap between black-box AI and interpretable quantitative finance.
+### 5. Explainable AI (XAI)
+*   **Local SHAP Values:** Uses Shapley Additive Explanations to break down exactly *why* a specific Alpha candidate is generating its current prediction, rendered as a real-time waterfall chart.
 
-## 📡 Data Ingestion
+## Technical Architecture
 
-The engine connects directly to the **Binance WebSocket API** (`wss://stream.binance.com:9443/ws/btcusdt@depth5@100ms`), processing high-frequency Level 2 order book updates (100ms intervals) to construct its microstructural filtration ($\mathcal{F}_t$).
+*   **Frontend Framework:** React 19 with TypeScript.
+*   **Styling:** Tailwind CSS for a highly customized, terminal-inspired dark mode UI.
+*   **Visualization:** Recharts for performant, real-time SVG charting (Area, Line, Bar, and Composed charts).
+*   **Data Source:** Native WebSocket connection to Binance (`wss://stream.binance.com:9443/ws/btcusdt@depth5@100ms`).
+*   **State Management:** React Hooks (`useState`, `useEffect`, `useRef`) combined with a custom `useDeepQuantEngine` hook that encapsulates the entire mathematical simulation loop.
 
-### Extracted Features ($\mathcal{X}$)
-- `λ_HWK`: Hawkes Process Self-Excitation Intensity
-- `Λ_KYL`: Kyle's Lambda (Market Impact)
-- `H_RST`: Hurst Exponent (Rough Volatility proxy)
-- `ρ_PIN`: Probability of Informed Trading
-- `Σ_PV`: Rough Path Signature (Price-Volume Lévy Area)
-- `S_VNE`: Von Neumann Entropy
-- *...and 13 other high-order statistical moments.*
+## Installation & Usage
 
-## 🚀 Getting Started
+1.  **Clone the repository.**
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Start the development server:**
+    ```bash
+    npm run dev
+    ```
+4.  Open your browser to the local URL provided by Vite (typically `http://localhost:3000`). The engine will automatically connect to the Binance WebSocket and begin synthesizing Alphas.
 
-### Prerequisites
-- Node.js (v18+ recommended)
-- npm or yarn
+## Disclaimer
 
-### Installation
+**For Educational and Research Purposes Only.** 
+DeepQuant is a theoretical simulation engine. The mathematical models (TDA, MFG, Information Geometry) implemented here are simplified approximations designed to run in a browser environment. They do not constitute financial advice, and the generated "Alpha Candidates" should not be used for actual trading with real capital. Cryptocurrency markets are highly volatile and risky.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/ren-tech-core.git
-   cd ren-tech-core
-   ```
+## License
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open your browser and navigate to `http://localhost:3000`. The engine will automatically connect to the Binance WebSocket and begin the Alpha mining process.
-
-## 🖥️ UI Architecture
-
-The interface is designed for extreme information density, utilizing a dark, terminal-inspired aesthetic common in institutional environments.
-- **Top Bar**: Global risk metrics (Fisher Trace, Von Neumann Entropy, Ensemble Sharpe) and active Regime detection.
-- **Left Panel**: Real-time Manifold Feature states and RMT Spectral Density visualization.
-- **Center Panel**: Information Geometry loss landscapes and the active Neuro-Symbolic Attention Manifold (Stochastic Trajectories).
-- **Right Panel**: DRO Portfolio Allocation and real-time SPDE Control Logs.
-
-## ⚠️ Disclaimer
-
-**FOR ACADEMIC AND RESEARCH PURPOSES ONLY.** 
-This software is a simulation and visualization tool. While it connects to real market data and utilizes mathematically rigorous concepts, the calculations are optimized for browser execution and rely on proxy approximations. It does **not** constitute financial advice, and should **not** be used for live trading with real capital without a dedicated, low-latency C++/Rust backend execution engine.
-
-## 📄 License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
----
-*“In markets, as in physics, the truth is often found in the geometry of the noise.”*
+This project is open-sourced under the MIT License.
